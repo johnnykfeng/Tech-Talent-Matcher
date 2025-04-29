@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <!-- Breadcrumb navigation -->
+            <nav aria-label="breadcrumb" class="mb-4">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Search Results</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">{{ candidate.name }}</li>
+                </ol>
+            </nav>
+
+            <!-- Candidate profile header -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="d-flex">
+                        <div class="me-4">
+                            <img src="{{ candidate.profile_image }}" alt="{{ candidate.name }}" class="rounded-circle profile-img">
+                        </div>
+                        <div class="flex-grow-1">
+                            <h1 class="h3 mb-2">{{ candidate.name }}</h1>
+                            <p class="text-muted mb-3">{{ candidate.title }}</p>
+                            <p class="mb-3">
+                                <i class="fas fa-map-marker-alt text-secondary me-2"></i>
+                                {{ candidate.location }}
+                            </p>
+                            
+                            <div class="d-flex">
+                                <button class="btn btn-primary me-2">
+                                    <i class="fas fa-user-plus me-1"></i> Contact
+                                </button>
+                                <button class="btn btn-outline-secondary shortlist-btn" data-candidate-id="{{ candidate.id }}">
+                                    <i class="fas fa-bookmark me-1"></i> <span class="shortlist-text">Shortlist</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bio section -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2 class="h5 mb-0">About</h2>
+                </div>
+                <div class="card-body">
+                    <p>{{ candidate.bio }}</p>
+                </div>
+            </div>
+
+            <!-- Experience section -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2 class="h5 mb-0">Experience</h2>
+                </div>
+                <div class="card-body">
+                    {% for experience in candidate.experiences %}
+                    <div class="mb-4">
+                        <h3 class="h6 mb-1">{{ experience.role }}</h3>
+                        <p class="text-muted mb-1">{{ experience.company }} • {{ experience.location }}</p>
+                        <p class="small text-muted mb-2">
+                            {{ experience.start_date.strftime('%b %Y') if experience.start_date else '' }} - 
+                            {% if experience.is_current %}
+                                Present
+                            {% else %}
+                                {{ experience.end_date.strftime('%b %Y') if experience.end_date else '' }}
+                            {% endif %}
+                        </p>
+                        <p>{{ experience.description }}</p>
+                    </div>
+                    {% if not loop.last %}<hr>{% endif %}
+                    {% else %}
+                    <p>No experience information available.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Education section -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2 class="h5 mb-0">Education</h2>
+                </div>
+                <div class="card-body">
+                    {% for education in candidate.educations %}
+                    <div class="mb-4">
+                        <h3 class="h6 mb-1">{{ education.degree }} in {{ education.field }}</h3>
+                        <p class="text-muted mb-1">{{ education.institution }} • {{ education.location }}</p>
+                        <p class="small text-muted mb-0">{{ education.year }}</p>
+                    </div>
+                    {% if not loop.last %}<hr>{% endif %}
+                    {% else %}
+                    <p>No education information available.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Skills section -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h2 class="h5 mb-0">Skills</h2>
+                </div>
+                <div class="card-body">
+                    <div class="skill-tags">
+                        {% for skill in candidate.skills %}
+                        <span class="badge rounded-pill bg-light text-dark mb-2 me-2 py-2 px-3">{{ skill.name }}</span>
+                        {% else %}
+                        <p>No skills listed.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if candidate is shortlisted
+    const shortlistBtn = document.querySelector('.shortlist-btn');
+    if (shortlistBtn) {
+        const candidateId = shortlistBtn.getAttribute('data-candidate-id');
+        
+        // Check shortlist status
+        fetch(`/api/check-shortlist/${candidateId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.shortlisted) {
+                    shortlistBtn.classList.add('active');
+                    shortlistBtn.querySelector('.shortlist-text').textContent = 'Shortlisted';
+                    shortlistBtn.querySelector('i').classList.remove('fa-bookmark');
+                    shortlistBtn.querySelector('i').classList.add('fa-bookmark-slash');
+                }
+            });
+        
+        // Toggle shortlist status
+        shortlistBtn.addEventListener('click', function() {
+            const candidateId = this.getAttribute('data-candidate-id');
+            
+            fetch('/api/shortlist', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ candidate_id: candidateId }),
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'added') {
+                        shortlistBtn.classList.add('active');
+                        shortlistBtn.querySelector('.shortlist-text').textContent = 'Shortlisted';
+                        shortlistBtn.querySelector('i').classList.remove('fa-bookmark');
+                        shortlistBtn.querySelector('i').classList.add('fa-bookmark-slash');
+                    } else {
+                        shortlistBtn.classList.remove('active');
+                        shortlistBtn.querySelector('.shortlist-text').textContent = 'Shortlist';
+                        shortlistBtn.querySelector('i').classList.remove('fa-bookmark-slash');
+                        shortlistBtn.querySelector('i').classList.add('fa-bookmark');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+        });
+    }
+});
+</script>
+{% endblock %}

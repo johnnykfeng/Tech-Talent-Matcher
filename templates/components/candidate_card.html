@@ -1,0 +1,99 @@
+<div class="card candidate-card mb-3">
+    <div class="card-body">
+        <div class="d-flex">
+            <!-- Checkbox and profile image -->
+            <div class="d-flex flex-column align-items-center me-3">
+                <div class="form-check mb-2">
+                    <input class="form-check-input candidate-checkbox" type="checkbox" value="{{ candidate.id }}" id="candidate-{{ candidate.id }}">
+                    <label class="form-check-label" for="candidate-{{ candidate.id }}"></label>
+                </div>
+                <a href="{{ url_for('candidate_detail', id=candidate.id) }}">
+                    <img src="{{ candidate.profile_image }}" alt="{{ candidate.name }}" class="rounded-circle candidate-img">
+                </a>
+            </div>
+            
+            <!-- Candidate information -->
+            <div class="flex-grow-1">
+                <!-- Name and shortlist button -->
+                <div class="d-flex justify-content-between align-items-start mb-1">
+                    <a href="{{ url_for('candidate_detail', id=candidate.id) }}" class="text-decoration-none">
+                        <h3 class="h5 mb-0 candidate-name">{{ candidate.name }}</h3>
+                    </a>
+                    <div class="d-flex">
+                        <button class="btn btn-sm btn-link p-0 me-2 shortlist-btn" data-candidate-id="{{ candidate.id }}" title="Shortlist">
+                            <i class="far fa-bookmark"></i>
+                        </button>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-link p-0 dropdown-toggle" type="button" id="dropdownMenuButton{{ candidate.id }}" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuButton{{ candidate.id }}">
+                                <li><a class="dropdown-item" href="{{ url_for('candidate_detail', id=candidate.id) }}">View profile</a></li>
+                                <li><a class="dropdown-item shortlist-action" href="#" data-candidate-id="{{ candidate.id }}">Add to shortlist</a></li>
+                                <li><a class="dropdown-item" href="#">Send message</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Title and position -->
+                <p class="text-muted mb-2">{{ candidate.title }}</p>
+                
+                <!-- Location -->
+                <p class="small mb-2">
+                    <i class="fas fa-map-marker-alt text-secondary me-1"></i> {{ candidate.location }}
+                </p>
+                
+                <!-- Bio preview -->
+                <p class="small text-muted mb-2">{{ candidate.bio[:150] }}{% if candidate.bio|length > 150 %}...{% endif %}</p>
+                
+                <!-- Education and experience -->
+                <div class="candidate-qualifications mb-3">
+                    {% if candidate.educations %}
+                    <div class="candidate-education small mb-1">
+                        <i class="fas fa-graduation-cap text-secondary me-1"></i>
+                        {% for education in candidate.educations[:1] %}
+                            {{ education.degree }} in {{ education.field }} at {{ education.institution }}
+                        {% endfor %}
+                        {% if candidate.educations|length > 1 %}
+                            <span class="text-muted">(+{{ candidate.educations|length - 1 }} more)</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    
+                    {% if candidate.experiences %}
+                    <div class="candidate-experience small">
+                        <i class="fas fa-briefcase text-secondary me-1"></i>
+                        {% for experience in candidate.experiences[:1] %}
+                            {{ experience.role }} at {{ experience.company }}
+                        {% endfor %}
+                        {% if candidate.experiences|length > 1 %}
+                            <span class="text-muted">(+{{ candidate.experiences|length - 1 }} more)</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Skills -->
+                <div class="candidate-skills">
+                    {% for skill in candidate.skills[:4] %}
+                        <span class="badge rounded-pill bg-light text-dark mb-1 me-1">{{ skill.name }}</span>
+                    {% endfor %}
+                    {% if candidate.skills|length > 4 %}
+                        <span class="badge rounded-pill bg-light text-dark mb-1">+{{ candidate.skills|length - 4 }} more</span>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Action buttons on right -->
+            <div class="ms-3 d-none d-md-flex flex-column">
+                <a href="{{ url_for('candidate_detail', id=candidate.id) }}" class="btn btn-sm btn-outline-secondary mb-2">
+                    <i class="fas fa-eye me-1"></i> View
+                </a>
+                <button class="btn btn-sm btn-outline-primary summarize-btn" data-candidate-id="{{ candidate.id }}">
+                    <i class="fas fa-file-alt me-1"></i> Summarize
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
