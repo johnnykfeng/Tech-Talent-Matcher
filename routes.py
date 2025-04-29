@@ -8,6 +8,7 @@ from data.candidates import seed_candidates
 from data.skills import seed_skills
 from data.locations import LOCATIONS
 from data.import_resumes import import_resumes
+from llm_search import search_candidates, get_search_suggestions
 
 # Initialize the database - recreate all tables and seed with data
 def initialize_data(force=False):
@@ -58,42 +59,23 @@ def index():
     skill_filter = request.args.getlist('skill')
     education_filter = request.args.getlist('education')
     
-    # Base query
-    query = Candidate.query
-    
-    # Apply search if provided
-    if search_query:
-        search_terms = '%' + search_query + '%'
-        query = query.filter(
-            or_(
-                Candidate.name.ilike(search_terms),
-                Candidate.title.ilike(search_terms),
-                Candidate.bio.ilike(search_terms)
-            )
-        )
-    
-    # Apply location filter if provided
+    # Prepare filters dictionary for the search function
+    filters = {}
     if location_filter:
-        query = query.filter(Candidate.location.in_(location_filter))
-    
-    # Apply skill filter if provided
+        filters['location'] = location_filter
     if skill_filter:
-        for skill in skill_filter:
-            # This will filter candidates who have the specified skill
-            skill_obj = Skill.query.filter_by(name=skill).first()
-            if skill_obj:
-                query = query.filter(Candidate.skills.contains(skill_obj))
-    
-    # Apply education filter if provided
+        filters['skill'] = skill_filter
     if education_filter:
-        education_candidates = db.session.query(Education.candidate_id).filter(
-            Education.degree.in_(education_filter)
-        ).distinct().subquery()
-        
-        query = query.filter(Candidate.id.in_(education_candidates))
+        filters['education'] = education_filter
     
-    # Execute paginated query
-    candidates = query.paginate(page=page, per_page=per_page, error_out=False)
+    # Use LLM-powered search function
+    candidates = search_candidates(
+        db=db,
+        search_query=search_query,
+        filters=filters,
+        page=page,
+        per_page=per_page
+    )
     
     # Get all skills for filter options
     all_skills = Skill.query.order_by(Skill.name).all()
@@ -167,27 +149,7 @@ def search_suggestions():
     if len(query) < 2:
         return jsonify([])
     
-    search_term = '%' + query + '%'
-    
-    # Get candidates matching the search term
-    candidates = Candidate.query.filter(
-        or_(
-            Candidate.name.ilike(search_term),
-            Candidate.title.ilike(search_term)
-        )
-    ).limit(5).all()
-    
-    # Get skills matching the search term
-    skills = Skill.query.filter(Skill.name.ilike(search_term)).limit(5).all()
-    
-    results = [
-        {'type': 'candidate', 'id': c.id, 'text': c.name, 'subtext': c.title}
-        for c in candidates
-    ]
-    
-    results.extend([
-        {'type': 'skill', 'id': s.id, 'text': s.name, 'subtext': 'Skill'}
-        for s in skills
-    ])
+    # Use our improved search suggestions function that includes LLM suggestions
+    results = get_search_suggestions(query, max_results=7)
     
     return jsonify(results)
