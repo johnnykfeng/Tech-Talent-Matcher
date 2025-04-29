@@ -1,5 +1,6 @@
-# A list of Canadian locations for filtering
+# A list of North American locations for filtering
 LOCATIONS = [
+    # Canadian locations
     "Toronto, Ontario, Canada",
     "Vancouver, British Columbia, Canada",
     "Montreal, Quebec, Canada",
@@ -19,5 +20,23 @@ LOCATIONS = [
     "Kelowna, British Columbia, Canada",
     "Burnaby, British Columbia, Canada",
     "North Vancouver, British Columbia, Canada",
-    "Waterloo, Ontario, Canada"
+    "Waterloo, Ontario, Canada",
+    
+    # US locations
+    "Los Angeles, California",
+    "New York, New York",
+    "San Francisco, California",
+    "Seattle, Washington",
+    "Boston, Massachusetts",
+    "Chicago, Illinois",
+    "Austin, Texas",
+    "Denver, Colorado",
+    "Miami, Florida",
+    "Atlanta, Georgia",
+    "Portland, Oregon",
+    "Philadelphia, Pennsylvania",
+    "San Diego, California",
+    "Houston, Texas",
+    "Phoenix, Arizona",
+    "Dallas, Texas"
 ]

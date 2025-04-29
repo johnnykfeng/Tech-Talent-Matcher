@@ -6,6 +6,7 @@ import logging
 from data.candidates import seed_candidates
 from data.skills import seed_skills
 from data.locations import LOCATIONS
+from data.import_resumes import import_resumes
 
 # Initialize the database - recreate all tables and seed with data
 def initialize_data():
@@ -14,9 +15,17 @@ def initialize_data():
         db.drop_all()
         db.create_all()
         
-    # Seed the database
+    # Seed the database with initial skills and candidates
     seed_skills(db)
     seed_candidates(db)
+    
+    # Import additional resumes from JSON files
+    try:
+        added_candidates, added_skills = import_resumes(db)
+        logging.info(f"Imported {added_candidates} candidates and {added_skills} new skills from JSON files")
+    except Exception as e:
+        logging.error(f"Error importing resumes: {e}")
+    
     db.session.commit()
     logging.info("Database recreated and seeded with initial data")
 
