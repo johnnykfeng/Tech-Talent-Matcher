@@ -3,35 +3,49 @@ from app import app, db
 from models import Candidate, Education, Experience, Skill, Shortlist
 from sqlalchemy import or_, and_, func
 import logging
+import os
 from data.candidates import seed_candidates
 from data.skills import seed_skills
 from data.locations import LOCATIONS
 from data.import_resumes import import_resumes
 
 # Initialize the database - recreate all tables and seed with data
-def initialize_data():
-    # Drop all tables and recreate them with the updated schema
-    with app.app_context():
+def initialize_data(force=False):
+    # Check if the database needs to be recreated (force=True or if no candidates exist)
+    should_initialize = force or Candidate.query.count() == 0
+    
+    if should_initialize:
+        # Count JSON resume files
+        resumes_dir = "data/Resumes_JSON"
+        resume_files = []
+        if os.path.exists(resumes_dir):
+            resume_files = [f for f in os.listdir(resumes_dir) if f.endswith('.json')]
+        logging.info(f"Found {len(resume_files)} JSON resume files in {resumes_dir}")
+        
+        # Drop all tables and recreate them with the updated schema
         db.drop_all()
         db.create_all()
         
-    # Seed the database with initial skills and candidates
-    seed_skills(db)
-    seed_candidates(db)
-    
-    # Import additional resumes from JSON files
-    try:
-        added_candidates, added_skills = import_resumes(db)
-        logging.info(f"Imported {added_candidates} candidates and {added_skills} new skills from JSON files")
-    except Exception as e:
-        logging.error(f"Error importing resumes: {e}")
-    
-    db.session.commit()
-    logging.info("Database recreated and seeded with initial data")
+        # Seed the database with initial skills and candidates
+        seed_skills(db)
+        seed_candidates(db)
+        
+        # Import additional resumes from JSON files
+        try:
+            added_candidates, added_skills = import_resumes(db)
+            logging.info(f"Imported {added_candidates} candidates and {added_skills} new skills from JSON files")
+        except Exception as e:
+            logging.error(f"Error importing resumes: {e}")
+        
+        db.session.commit()
+        logging.info("Database recreated and seeded with initial data")
+    else:
+        logging.info("Database already initialized, skipping initialization")
 
 # Initialize data when the application starts
 with app.app_context():
-    initialize_data()
+    # Force reinitialization to include new resumes
+    initialize_data(force=True)
 
 @app.route('/')
 def index():

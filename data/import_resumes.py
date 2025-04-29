@@ -213,30 +213,44 @@ def import_resumes(db):
             
             # Add skills
             for skill_name in resume_data.get('skills', []):
-                # Check if the skill already exists
-                skill = Skill.query.filter_by(name=skill_name).first()
-                
-                # Create skill if it doesn't exist
-                if not skill:
-                    # Determine a category based on keywords in the skill name
-                    category = "Technical"
+                try:
+                    # Ensure skill name isn't too long for the database field
+                    # Our model now has a 100 character limit
+                    if len(skill_name) > 100:
+                        truncated_name = skill_name[:97] + "..."
+                        logging.warning(f"Truncating skill name: '{skill_name}' to '{truncated_name}'")
+                        skill_name = truncated_name
                     
-                    if any(kw in skill_name.lower() for kw in ["management", "leadership", "team", "communication"]):
-                        category = "Soft Skills"
-                    elif any(kw in skill_name.lower() for kw in ["marketing", "seo", "content", "social media"]):
-                        category = "Marketing"
-                    elif any(kw in skill_name.lower() for kw in ["data", "analytics", "analysis", "statistics"]):
-                        category = "Data Analysis"
-                    elif any(kw in skill_name.lower() for kw in ["programming", "java", "python", "javascript", "code"]):
-                        category = "Programming"
+                    # Check if the skill already exists (use a session.no_autoflush block)
+                    with db.session.no_autoflush:
+                        skill = Skill.query.filter_by(name=skill_name).first()
                     
-                    # Create the skill
-                    skill = Skill(name=skill_name, category=category)
-                    db.session.add(skill)
-                    added_skills += 1
-                
-                # Add skill to candidate
-                candidate.skills.append(skill)
+                    # Create skill if it doesn't exist
+                    if not skill:
+                        # Determine a category based on keywords in the skill name
+                        category = "Technical"
+                        
+                        if any(kw in skill_name.lower() for kw in ["management", "leadership", "team", "communication"]):
+                            category = "Soft Skills"
+                        elif any(kw in skill_name.lower() for kw in ["marketing", "seo", "content", "social media"]):
+                            category = "Marketing"
+                        elif any(kw in skill_name.lower() for kw in ["data", "analytics", "analysis", "statistics"]):
+                            category = "Data Analysis"
+                        elif any(kw in skill_name.lower() for kw in ["programming", "java", "python", "javascript", "code"]):
+                            category = "Programming"
+                        
+                        # Create the skill
+                        skill = Skill(name=skill_name, category=category)
+                        db.session.add(skill)
+                        db.session.flush()  # Flush to get the skill ID
+                        added_skills += 1
+                    
+                    # Add skill to candidate
+                    candidate.skills.append(skill)
+                    
+                except Exception as e:
+                    logging.error(f"Error processing skill '{skill_name}': {e}")
+                    continue  # Skip this skill and move to the next one
             
             # Add candidate to session
             db.session.add(candidate)

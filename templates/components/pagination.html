@@ -1,9 +1,14 @@
 <nav aria-label="Page navigation" class="mt-4">
     <ul class="pagination justify-content-center">
+        <!-- Common args handling to prevent duplicate parameters -->
+        {% set args = request.args.to_dict(flat=False) %}
+        {% set _ = args.pop('page', None) %}
+        {% set _ = args.pop('q', None) %}
+        
         <!-- Previous page button -->
         {% if candidates.has_prev %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('index', page=candidates.prev_num, q=search_query, **request.args.to_dict(flat=False)) }}" aria-label="Previous">
+            <a class="page-link" href="{{ url_for('index', page=candidates.prev_num, q=search_query, **args) }}" aria-label="Previous">
                 <span aria-hidden="true">&laquo;</span>
             </a>
         </li>
@@ -19,7 +24,7 @@
         
         {% if start_page > 1 %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('index', page=1, q=search_query, **request.args.to_dict(flat=False)) }}">1</a>
+            <a class="page-link" href="{{ url_for('index', page=1, q=search_query, **args) }}">1</a>
         </li>
         {% if start_page > 2 %}
         <li class="page-item disabled">
@@ -30,7 +35,7 @@
         
         {% for page_num in range(start_page, end_page + 1) %}
         <li class="page-item {% if page_num == candidates.page %}active{% endif %}">
-            <a class="page-link" href="{{ url_for('index', page=page_num, q=search_query, **request.args.to_dict(flat=False)) }}">{{ page_num }}</a>
+            <a class="page-link" href="{{ url_for('index', page=page_num, q=search_query, **args) }}">{{ page_num }}</a>
         </li>
         {% endfor %}
         
@@ -41,14 +46,14 @@
         </li>
         {% endif %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('index', page=candidates.pages, q=search_query, **request.args.to_dict(flat=False)) }}">{{ candidates.pages }}</a>
+            <a class="page-link" href="{{ url_for('index', page=candidates.pages, q=search_query, **args) }}">{{ candidates.pages }}</a>
         </li>
         {% endif %}
         
         <!-- Next page button -->
         {% if candidates.has_next %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('index', page=candidates.next_num, q=search_query, **request.args.to_dict(flat=False)) }}" aria-label="Next">
+            <a class="page-link" href="{{ url_for('index', page=candidates.next_num, q=search_query, **args) }}" aria-label="Next">
                 <span aria-hidden="true">&raquo;</span>
             </a>
         </li>

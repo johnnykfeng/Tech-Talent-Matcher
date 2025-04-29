@@ -39,7 +39,10 @@
                     <span class="me-3">{{ candidates.page }} - {{ candidates.page * candidates.per_page if candidates.page * candidates.per_page < candidates.total else candidates.total }} of {{ candidates.total }}</span>
                     <div class="pagination-controls">
                         {% if candidates.has_prev %}
-                        <a href="{{ url_for('index', page=candidates.prev_num, q=search_query, **request.args.to_dict(flat=False)) }}" class="btn btn-outline-secondary btn-sm">
+                        {% set args = request.args.to_dict(flat=False) %}
+                        {% set _ = args.pop('page', None) %}
+                        {% set _ = args.pop('q', None) %}
+                        <a href="{{ url_for('index', page=candidates.prev_num, q=search_query, **args) }}" class="btn btn-outline-secondary btn-sm">
                             <i class="fas fa-chevron-left"></i>
                         </a>
                         {% else %}
@@ -49,7 +52,10 @@
                         {% endif %}
                         
                         {% if candidates.has_next %}
-                        <a href="{{ url_for('index', page=candidates.next_num, q=search_query, **request.args.to_dict(flat=False)) }}" class="btn btn-outline-secondary btn-sm ms-1">
+                        {% set args = request.args.to_dict(flat=False) %}
+                        {% set _ = args.pop('page', None) %}
+                        {% set _ = args.pop('q', None) %}
+                        <a href="{{ url_for('index', page=candidates.next_num, q=search_query, **args) }}" class="btn btn-outline-secondary btn-sm ms-1">
                             <i class="fas fa-chevron-right"></i>
                         </a>
                         {% else %}

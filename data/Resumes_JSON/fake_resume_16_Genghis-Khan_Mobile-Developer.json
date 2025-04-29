@@ -1,0 +1,66 @@
+{
+  "name": "Genghis Khan",
+  "location": "Atlanta, Georgia",
+  "email": "genghis.khan@zoho.com",
+  "phone": "+1-599-845-1210",
+  "summary": "Innovative and results-driven Mobile Developer with over 5 years of experience in designing, developing, and implementing mobile applications. Proven ability to leverage full-stack expertise to build interactive and user-centered mobile applications. Passionate about exploring new technologies and delivering high-quality software solutions.",
+  "job_title": "Mobile Developer",
+  "skills": [
+    "Swift",
+    "Kotlin",
+    "React Native",
+    "Java",
+    "Objective-C",
+    "RESTful APIs",
+    "Agile Methodologies",
+    "UI/UX Design"
+  ],
+  "experience": [
+    {
+      "company": "Tech Innovations Inc.",
+      "position": "Senior Mobile Developer",
+      "duration": "Jan 2021 - Present",
+      "description": [
+        "Lead the development of mobile applications on iOS and Android platforms.",
+        "Collaborate with UI/UX designers to optimize application usability and aesthetics.",
+        "Implement agile methodologies for project management, improving development efficiency by 30%.",
+        "Mentor junior developers and conducted code review sessions to ensure code quality."
+      ]
+    },
+    {
+      "company": "App Creators LLC",
+      "position": "Mobile Developer",
+      "duration": "May 2018 - Dec 2020",
+      "description": [
+        "Designed and developed over 10 mobile applications with more than 100,000 downloads.",
+        "Worked closely with back-end developers to integrate RESTful APIs.",
+        "Participated in daily stand-ups and sprint planning, maintaining a product backlog.",
+        "Tested applications thoroughly to meet performance and quality standards."
+      ]
+    }
+  ],
+  "education": [
+    {
+      "institution": "Georgia Institute of Technology",
+      "degree": "Bachelor of Science",
+      "field": "Computer Science",
+      "graduation_date": "2018"
+    }
+  ],
+  "extra_info": [
+    {
+      "title": "Certifications",
+      "items": [
+        "Certified Mobile Application Developer (CMAD)",
+        "Google Associate Android Developer"
+      ]
+    },
+    {
+      "title": "Projects",
+      "items": [
+        "Fitness Tracker App: Developed a cross-platform application that helps users monitor their workouts and health indicators.",
+        "Recipe Organizer: Created a mobile app for cooking enthusiasts to manage and share their favorite recipes."
+      ]
+    }
+  ]
+}
