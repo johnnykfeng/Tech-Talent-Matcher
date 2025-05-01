@@ -1,0 +1,450 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center bg-white py-3">
+                    <h4 class="mb-0">Interactive Skill Matching Heatmap</h4>
+                    <div>
+                        <button id="toggleLLMMode" class="btn btn-outline-primary me-2">
+                            <i class="fas fa-brain me-1"></i> <span id="llmModeText">Enable AI Matching</span>
+                        </button>
+                        <button id="refreshHeatmap" class="btn btn-primary">
+                            <i class="fas fa-sync-alt me-1"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="categoryFilter" class="form-label">Filter by Skill Category</label>
+                                <select id="categoryFilter" class="form-select">
+                                    <option value="">All Categories</option>
+                                    {% for category in categories %}
+                                    <option value="{{ category }}">{{ category }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="skillLimit" class="form-label">Number of Skills</label>
+                                <input type="number" id="skillLimit" class="form-control" min="5" max="20" value="10">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="candidateLimit" class="form-label">Number of Candidates</label>
+                                <input type="number" id="candidateLimit" class="form-control" min="5" max="20" value="10">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="alert alert-info d-none" id="loadingAlert">
+                                <i class="fas fa-spinner fa-spin me-2"></i> Loading heatmap data...
+                            </div>
+                            <div class="alert alert-warning d-none" id="llmAlert">
+                                <i class="fas fa-info-circle me-2"></i> AI matching is active. Light colored cells indicate skills the candidate likely has based on AI analysis of their profile.
+                            </div>
+                            <div id="heatmapContainer" class="mt-3">
+                                <div id="heatmap"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-4">
+                        <div class="col-md-12">
+                            <h5>Legend</h5>
+                            <div class="d-flex align-items-center">
+                                <div class="legend-item me-4">
+                                    <div class="legend-color" style="background-color: var(--primary-color); opacity: 1.0;"></div>
+                                    <span>Explicit Match</span>
+                                </div>
+                                <div class="legend-item me-4">
+                                    <div class="legend-color" style="background-color: var(--primary-color); opacity: 0.6;"></div>
+                                    <span>Likely Match (High)</span>
+                                </div>
+                                <div class="legend-item me-4">
+                                    <div class="legend-color" style="background-color: var(--primary-color); opacity: 0.3;"></div>
+                                    <span>Possible Match (Low)</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-color" style="background-color: #f8f9fa;"></div>
+                                    <span>No Match</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0">Selected Skills</h5>
+                </div>
+                <div class="card-body">
+                    <div id="selectedSkills" class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Skill</th>
+                                    <th>Category</th>
+                                    <th>Candidates</th>
+                                </tr>
+                            </thead>
+                            <tbody id="skillsTableBody">
+                                <tr>
+                                    <td colspan="3" class="text-center">Select a category to see skills</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0">Matched Candidates</h5>
+                </div>
+                <div class="card-body">
+                    <div id="matchedCandidates" class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Candidate</th>
+                                    <th>Title</th>
+                                    <th>Location</th>
+                                    <th>Skills</th>
+                                </tr>
+                            </thead>
+                            <tbody id="candidatesTableBody">
+                                <tr>
+                                    <td colspan="4" class="text-center">Loading candidates...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- D3.js for visualization -->
+<script src="https://d3js.org/d3.v7.min.js"></script>
+
+<script>
+// State variables
+let useLLM = false;
+let currentSkills = [];
+let currentCandidates = [];
+let heatmapData = null;
+
+// Initialize the heatmap when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize the heatmap
+    refreshHeatmap();
+    
+    // Set up event listeners
+    document.getElementById('categoryFilter').addEventListener('change', refreshHeatmap);
+    document.getElementById('skillLimit').addEventListener('change', refreshHeatmap);
+    document.getElementById('candidateLimit').addEventListener('change', refreshHeatmap);
+    document.getElementById('refreshHeatmap').addEventListener('click', refreshHeatmap);
+    document.getElementById('toggleLLMMode').addEventListener('click', toggleLLMMode);
+});
+
+// Toggle LLM mode
+function toggleLLMMode() {
+    useLLM = !useLLM;
+    const button = document.getElementById('toggleLLMMode');
+    const textSpan = document.getElementById('llmModeText');
+    const alert = document.getElementById('llmAlert');
+    
+    if (useLLM) {
+        button.classList.remove('btn-outline-primary');
+        button.classList.add('btn-primary');
+        textSpan.textContent = 'Disable AI Matching';
+        alert.classList.remove('d-none');
+    } else {
+        button.classList.remove('btn-primary');
+        button.classList.add('btn-outline-primary');
+        textSpan.textContent = 'Enable AI Matching';
+        alert.classList.add('d-none');
+    }
+    
+    refreshHeatmap();
+}
+
+// Refresh the heatmap data and visualization
+function refreshHeatmap() {
+    showLoading(true);
+    
+    // Get filter values
+    const category = document.getElementById('categoryFilter').value;
+    const skillLimit = document.getElementById('skillLimit').value;
+    const candidateLimit = document.getElementById('candidateLimit').value;
+    
+    // Fetch top skills for the selected category
+    fetch(`/api/top-skills?category=${encodeURIComponent(category)}&limit=${skillLimit}`)
+        .then(response => response.json())
+        .then(skills => {
+            currentSkills = skills;
+            updateSkillsTable(skills);
+            
+            // Get skill IDs
+            const skillIds = skills.map(skill => skill.id);
+            
+            // Fetch top candidates for these skills
+            return fetch(`/api/top-candidates?${skillIds.map(id => `skill_id=${id}`).join('&')}&limit=${candidateLimit}`);
+        })
+        .then(response => response.json())
+        .then(candidates => {
+            currentCandidates = candidates;
+            updateCandidatesTable(candidates);
+            
+            // Get candidate IDs
+            const candidateIds = candidates.map(candidate => candidate.id);
+            const skillIds = currentSkills.map(skill => skill.id);
+            
+            // Fetch the skill match matrix
+            return fetch(`/api/skill-match-matrix?${candidateIds.map(id => `candidate_id=${id}`).join('&')}&${skillIds.map(id => `skill_id=${id}`).join('&')}&use_llm=${useLLM ? 1 : 0}`);
+        })
+        .then(response => response.json())
+        .then(data => {
+            heatmapData = data;
+            createHeatmap(data);
+            showLoading(false);
+        })
+        .catch(error => {
+            console.error('Error fetching heatmap data:', error);
+            showLoading(false);
+            alert('Error loading heatmap data. Please try again.');
+        });
+}
+
+// Show/hide loading indicator
+function showLoading(show) {
+    const loadingAlert = document.getElementById('loadingAlert');
+    if (show) {
+        loadingAlert.classList.remove('d-none');
+    } else {
+        loadingAlert.classList.add('d-none');
+    }
+}
+
+// Update the skills table
+function updateSkillsTable(skills) {
+    const tableBody = document.getElementById('skillsTableBody');
+    tableBody.innerHTML = '';
+    
+    if (skills.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = '<td colspan="3" class="text-center">No skills found</td>';
+        tableBody.appendChild(row);
+        return;
+    }
+    
+    skills.forEach(skill => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${skill.name}</td>
+            <td>${skill.category || 'N/A'}</td>
+            <td>${skill.count}</td>
+        `;
+        tableBody.appendChild(row);
+    });
+}
+
+// Update the candidates table
+function updateCandidatesTable(candidates) {
+    const tableBody = document.getElementById('candidatesTableBody');
+    tableBody.innerHTML = '';
+    
+    if (candidates.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = '<td colspan="4" class="text-center">No candidates found</td>';
+        tableBody.appendChild(row);
+        return;
+    }
+    
+    candidates.forEach(candidate => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>
+                <a href="/candidates/${candidate.id}" class="text-decoration-none">
+                    ${candidate.name}
+                </a>
+            </td>
+            <td>${candidate.title}</td>
+            <td>${candidate.location || 'N/A'}</td>
+            <td>${candidate.skill_count}</td>
+        `;
+        tableBody.appendChild(row);
+    });
+}
+
+// Create the heatmap visualization
+function createHeatmap(data) {
+    if (!data || !data.scores || data.scores.length === 0) {
+        document.getElementById('heatmap').innerHTML = '<div class="alert alert-warning">No data available for heatmap</div>';
+        return;
+    }
+    
+    const container = document.getElementById('heatmap');
+    container.innerHTML = '';
+    
+    // Set dimensions and margins
+    const margin = { top: 80, right: 25, bottom: 30, left: 200 };
+    const width = Math.max(600, container.clientWidth - margin.left - margin.right);
+    const height = Math.max(500, data.candidates.length * 40);
+    
+    // Append SVG object to the container
+    const svg = d3.select('#heatmap')
+        .append('svg')
+        .attr('width', width + margin.left + margin.right)
+        .attr('height', height + margin.top + margin.bottom)
+        .append('g')
+        .attr('transform', `translate(${margin.left},${margin.top})`);
+    
+    // Labels for axes
+    const candidateNames = data.candidates.map(c => c.name);
+    const skillNames = data.skills.map(s => s.name);
+    
+    // Build X scales and axis
+    const x = d3.scaleBand()
+        .range([0, width])
+        .domain(skillNames)
+        .padding(0.05);
+    
+    svg.append('g')
+        .attr('transform', `translate(0, ${height})`)
+        .call(d3.axisBottom(x).tickSize(0))
+        .selectAll('text')
+        .attr('transform', 'translate(-10,0)rotate(-45)')
+        .style('text-anchor', 'end')
+        .style('font-size', '12px');
+    
+    // Build Y scales and axis
+    const y = d3.scaleBand()
+        .range([height, 0])
+        .domain(candidateNames)
+        .padding(0.05);
+    
+    svg.append('g')
+        .call(d3.axisLeft(y).tickSize(0))
+        .selectAll('text')
+        .style('font-size', '12px');
+    
+    // Build color scale
+    const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--primary-color').trim() || '#8557ed';
+    
+    // Add tool tip
+    const tooltip = d3.select('#heatmap')
+        .append('div')
+        .style('opacity', 0)
+        .attr('class', 'tooltip')
+        .style('position', 'absolute')
+        .style('background-color', 'white')
+        .style('border', '1px solid #dee2e6')
+        .style('border-radius', '4px')
+        .style('padding', '10px')
+        .style('z-index', '10');
+    
+    // Add the squares
+    for (let i = 0; i < data.candidates.length; i++) {
+        for (let j = 0; j < data.skills.length; j++) {
+            const score = data.scores[i][j];
+            const candidate = data.candidates[i];
+            const skill = data.skills[j];
+            
+            // Define opacity based on score
+            let opacity = score;
+            let matchType = 'No Match';
+            
+            if (score === 1) {
+                matchType = 'Explicit Match';
+            } else if (score >= 0.6) {
+                matchType = 'Likely Match (High)';
+            } else if (score >= 0.3) {
+                matchType = 'Possible Match (Low)';
+            }
+            
+            svg.append('rect')
+                .attr('x', x(skillNames[j]))
+                .attr('y', y(candidateNames[i]))
+                .attr('width', x.bandwidth())
+                .attr('height', y.bandwidth())
+                .style('fill', score > 0 ? primaryColor : '#f8f9fa')
+                .style('opacity', score > 0 ? opacity : 1)
+                .style('stroke', '#dee2e6')
+                .style('stroke-width', '1px')
+                .on('mouseover', function(event) {
+                    d3.select(this).style('stroke', primaryColor).style('stroke-width', '2px');
+                    tooltip.style('opacity', 1);
+                    tooltip.html(`
+                        <strong>Candidate:</strong> ${candidate.name}<br>
+                        <strong>Skill:</strong> ${skill.name}<br>
+                        <strong>Match:</strong> ${matchType}<br>
+                        ${score < 1 && score > 0 ? `<strong>AI Confidence:</strong> ${Math.round(score * 100)}%` : ''}
+                    `)
+                    .style('left', (event.pageX + 10) + 'px')
+                    .style('top', (event.pageY - 20) + 'px');
+                })
+                .on('mouseout', function() {
+                    d3.select(this).style('stroke', '#dee2e6').style('stroke-width', '1px');
+                    tooltip.style('opacity', 0);
+                })
+                .on('click', function() {
+                    window.location.href = `/candidates/${candidate.id}`;
+                })
+                .style('cursor', 'pointer');
+        }
+    }
+}
+</script>
+
+<style>
+/* Custom styles for the heatmap page */
+.legend-item {
+    display: flex;
+    align-items: center;
+}
+
+.legend-color {
+    width: 20px;
+    height: 20px;
+    margin-right: 5px;
+    border: 1px solid #dee2e6;
+}
+
+#heatmapContainer {
+    overflow-x: auto;
+    min-height: 500px;
+}
+
+.form-label {
+    font-weight: 500;
+}
+
+.card {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.card-header {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+</style>
+{% endblock %}

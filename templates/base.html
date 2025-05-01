@@ -24,7 +24,12 @@
                 <div class="collapse navbar-collapse" id="navbarNav">
                     <ul class="navbar-nav me-auto">
                         <li class="nav-item">
-                            <a class="nav-link active" href="/">Search</a>
+                            <a class="nav-link {{ 'active' if request.path == '/' else '' }}" href="/">Search</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {{ 'active' if request.path == '/skill-heatmap' else '' }}" href="/skill-heatmap">
+                                <i class="fas fa-th me-1"></i> Skill Heatmap
+                            </a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" href="#" title="Autopilot (Coming Soon)">

@@ -9,6 +9,12 @@ from data.skills import seed_skills
 from data.locations import LOCATIONS
 from data.import_resumes import import_resumes
 from llm_search import search_candidates, get_search_suggestions
+from skill_heatmap import (
+    get_skill_categories,
+    get_top_skills_by_category,
+    get_top_candidates,
+    calculate_skill_match_matrix
+)
 
 # Initialize the database - recreate all tables and seed with data
 def initialize_data(force=False):
@@ -153,3 +159,58 @@ def search_suggestions():
     results = get_search_suggestions(query, max_results=7)
     
     return jsonify(results)
+
+@app.route('/skill-heatmap')
+def skill_heatmap():
+    """
+    Render the skill heatmap page.
+    """
+    # Get all skill categories for the filter
+    categories = get_skill_categories()
+    
+    return render_template(
+        'skill_heatmap.html',
+        categories=categories
+    )
+
+@app.route('/api/skill-categories')
+def api_skill_categories():
+    """
+    Get all skill categories.
+    """
+    categories = get_skill_categories()
+    return jsonify(categories)
+
+@app.route('/api/top-skills')
+def api_top_skills():
+    """
+    Get top skills, optionally filtered by category.
+    """
+    category = request.args.get('category')
+    limit = request.args.get('limit', 10, type=int)
+    
+    skills = get_top_skills_by_category(category, limit)
+    return jsonify(skills)
+
+@app.route('/api/top-candidates')
+def api_top_candidates():
+    """
+    Get top candidates, optionally filtered by skills.
+    """
+    skill_ids = request.args.getlist('skill_id', type=int)
+    limit = request.args.get('limit', 10, type=int)
+    
+    candidates = get_top_candidates(skill_ids, limit)
+    return jsonify(candidates)
+
+@app.route('/api/skill-match-matrix')
+def api_skill_match_matrix():
+    """
+    Calculate and return a skill match matrix.
+    """
+    candidate_ids = request.args.getlist('candidate_id', type=int)
+    skill_ids = request.args.getlist('skill_id', type=int)
+    use_llm = request.args.get('use_llm', '0') == '1'
+    
+    result = calculate_skill_match_matrix(candidate_ids, skill_ids, use_llm)
+    return jsonify(result)
