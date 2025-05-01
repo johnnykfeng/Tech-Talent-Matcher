@@ -1,39 +1,54 @@
 import numpy as np
-from models import Candidate, Skill, db
-from sqlalchemy import func, text
-from llm_search import get_candidate_text, openai_client
-import json
-import logging
+from functools import lru_cache
+from sqlalchemy import func
+from app import db
+from models import Candidate, Skill, candidate_skills
 
 def get_skill_categories():
     """
     Get all skill categories.
     """
-    categories = db.session.query(Skill.category).distinct().order_by(Skill.category).all()
-    return [category[0] for category in categories if category[0]]
+    # Query distinct categories that are not None
+    categories = db.session.query(Skill.category).filter(
+        Skill.category.isnot(None)
+    ).distinct().all()
+    
+    # Extract category names and sort alphabetically
+    return sorted([category[0] for category in categories if category[0]])
 
 def get_top_skills_by_category(category=None, limit=10):
     """
     Get the top skills by usage, optionally filtered by category.
     """
+    # Build the query
     query = db.session.query(
-        Skill.id, 
-        Skill.name, 
+        Skill.id,
+        Skill.name,
         Skill.category,
-        func.count(text('candidate_skills.candidate_id')).label('candidate_count')
-    ).outerjoin(text('candidate_skills')).group_by(Skill.id, Skill.name, Skill.category)
+        func.count(candidate_skills.c.candidate_id).label('count')
+    ).outerjoin(
+        candidate_skills,
+        Skill.id == candidate_skills.c.skill_id
+    ).group_by(
+        Skill.id
+    )
     
+    # Apply category filter if provided
     if category:
         query = query.filter(Skill.category == category)
     
-    skills = query.order_by(text('candidate_count DESC')).limit(limit).all()
+    # Get results ordered by usage count, descending
+    skills = query.order_by(
+        func.count(candidate_skills.c.candidate_id).desc()
+    ).limit(limit).all()
     
+    # Convert to dictionary format
     return [
         {
             'id': skill.id,
             'name': skill.name,
             'category': skill.category,
-            'count': skill.candidate_count
+            'count': skill.count
         }
         for skill in skills
     ]
@@ -42,24 +57,61 @@ def get_top_candidates(skills=None, limit=10):
     """
     Get the top candidates, optionally filtered by skills.
     """
-    query = Candidate.query
+    # Start with a query for candidates and their skill counts
+    query = db.session.query(
+        Candidate.id,
+        Candidate.name,
+        Candidate.title,
+        Candidate.location,
+        func.count(candidate_skills.c.skill_id).label('skill_count')
+    ).outerjoin(
+        candidate_skills,
+        Candidate.id == candidate_skills.c.candidate_id
+    ).group_by(
+        Candidate.id
+    )
     
+    # Filter by skills if provided
     if skills and len(skills) > 0:
-        for skill_id in skills:
-            skill_obj = Skill.query.get(skill_id)
-            if skill_obj:
-                query = query.filter(Candidate.skills.contains(skill_obj))
+        # Convert to list if single ID is provided
+        if not isinstance(skills, list):
+            skills = [skills]
+        
+        # Create a subquery that counts matches for each candidate
+        skill_match_counts = db.session.query(
+            candidate_skills.c.candidate_id,
+            func.count(candidate_skills.c.skill_id).label('matches')
+        ).filter(
+            candidate_skills.c.skill_id.in_(skills)
+        ).group_by(
+            candidate_skills.c.candidate_id
+        ).subquery()
+        
+        # Join with the main query and order by match count
+        query = query.join(
+            skill_match_counts,
+            Candidate.id == skill_match_counts.c.candidate_id
+        ).order_by(
+            skill_match_counts.c.matches.desc(),
+            func.count(candidate_skills.c.skill_id).desc()
+        )
+    else:
+        # If no skills are specified, order by total skill count
+        query = query.order_by(
+            func.count(candidate_skills.c.skill_id).desc()
+        )
     
+    # Limit the results
     candidates = query.limit(limit).all()
     
+    # Convert to dictionary format
     return [
         {
             'id': candidate.id,
             'name': candidate.name,
             'title': candidate.title,
             'location': candidate.location,
-            'image': candidate.profile_image,
-            'skill_count': len(candidate.skills)
+            'skill_count': candidate.skill_count
         }
         for candidate in candidates
     ]
@@ -74,27 +126,25 @@ def calculate_skill_match_scores(candidates, skills):
             - candidates: list of candidate info
             - skills: list of skill info
     """
-    if not candidates or not skills:
-        return {
-            'scores': [],
-            'candidates': [],
-            'skills': []
-        }
-    
-    # Initialize score matrix
+    # Create empty score matrix
     scores = np.zeros((len(candidates), len(skills)))
     
-    # Get explicit matches (candidate has the skill)
+    # For each candidate
     for i, candidate in enumerate(candidates):
-        candidate_obj = Candidate.query.get(candidate['id'])
-        if not candidate_obj:
-            continue
-            
-        candidate_skill_ids = [skill.id for skill in candidate_obj.skills]
+        # Get the candidate's skills
+        candidate_skill_ids = set(
+            skill_id for skill_id, in db.session.query(
+                candidate_skills.c.skill_id
+            ).filter(
+                candidate_skills.c.candidate_id == candidate['id']
+            ).all()
+        )
         
+        # For each skill
         for j, skill in enumerate(skills):
+            # Check if the candidate has this skill
             if skill['id'] in candidate_skill_ids:
-                scores[i, j] = 1.0
+                scores[i][j] = 1.0
     
     return {
         'scores': scores.tolist(),
@@ -114,121 +164,159 @@ def calculate_skill_match_matrix(candidate_ids=None, skill_ids=None, use_llm=Fal
     Returns:
         Dictionary with scores, candidates, and skills
     """
-    # Get candidates and skills
-    if not candidate_ids:
-        candidates = get_top_candidates(limit=10)
+    # Get candidates
+    if candidate_ids:
+        # Convert to list if single ID is provided
+        if not isinstance(candidate_ids, list):
+            candidate_ids = [candidate_ids]
+        
+        candidates = db.session.query(
+            Candidate.id,
+            Candidate.name
+        ).filter(
+            Candidate.id.in_(candidate_ids)
+        ).all()
     else:
-        candidates = [
-            {
-                'id': candidate.id,
-                'name': candidate.name,
-                'title': candidate.title,
-                'location': candidate.location,
-                'image': candidate.profile_image,
-                'skill_count': len(candidate.skills)
-            }
-            for candidate in Candidate.query.filter(Candidate.id.in_(candidate_ids)).all()
-        ]
+        # If no candidates specified, get top 10
+        candidates = db.session.query(
+            Candidate.id,
+            Candidate.name
+        ).limit(10).all()
     
-    if not skill_ids:
-        skills = get_top_skills_by_category(limit=10)
+    # Get skills
+    if skill_ids:
+        # Convert to list if single ID is provided
+        if not isinstance(skill_ids, list):
+            skill_ids = [skill_ids]
+        
+        skills = db.session.query(
+            Skill.id,
+            Skill.name,
+            Skill.category
+        ).filter(
+            Skill.id.in_(skill_ids)
+        ).all()
     else:
-        skills = [
-            {
-                'id': skill.id,
-                'name': skill.name,
-                'category': skill.category,
-                'count': db.session.query(func.count(text('candidate_skills.candidate_id')))
-                    .select_from(Skill)
-                    .outerjoin(text('candidate_skills'))
-                    .filter(Skill.id == skill.id)
-                    .scalar() or 0
-            }
-            for skill in Skill.query.filter(Skill.id.in_(skill_ids)).all()
-        ]
+        # If no skills specified, get top 10
+        skills = db.session.query(
+            Skill.id,
+            Skill.name,
+            Skill.category
+        ).limit(10).all()
     
-    # Calculate basic matches
-    result = calculate_skill_match_scores(candidates, skills)
+    # Format candidates and skills for output
+    candidate_list = [
+        {'id': c.id, 'name': c.name} for c in candidates
+    ]
     
-    # If LLM-based matching is requested
-    if use_llm and candidates and skills:
-        try:
-            # Enhance scores with LLM-based matching
-            result = enhance_scores_with_llm(result)
-        except Exception as e:
-            logging.error(f"Error in LLM matching: {e}")
+    skill_list = [
+        {'id': s.id, 'name': s.name, 'category': s.category} for s in skills
+    ]
+    
+    # Calculate match scores
+    result = calculate_skill_match_scores(candidate_list, skill_list)
+    
+    # Use LLM to enhance scores if requested
+    if use_llm and len(candidate_list) > 0 and len(skill_list) > 0:
+        result = enhance_scores_with_llm(result)
     
     return result
 
 def enhance_scores_with_llm(result):
     """
     Enhance skill match scores using LLM to detect implicit matches.
+    
+    This is a placeholder for the actual LLM-based enhancement.
+    In a real implementation, this would use OpenAI or another LLM
+    to analyze candidate profiles and determine if they likely
+    have skills that aren't explicitly listed.
     """
-    scores = np.array(result['scores'])
-    candidates = result['candidates']
-    skills = result['skills']
-    
-    # Only process candidates/skills with 0 scores (not explicit matches)
-    for i, candidate in enumerate(candidates):
-        candidate_obj = Candidate.query.get(candidate['id'])
-        if not candidate_obj:
-            continue
+    try:
+        from openai import OpenAI
+        import os
+        
+        # Initialize OpenAI client
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        
+        # Get the original scores
+        scores = np.array(result['scores'])
+        candidates = result['candidates']
+        skills = result['skills']
+        
+        # For each candidate and skill
+        for i, candidate in enumerate(candidates):
+            # Get candidate details
+            candidate_data = db.session.query(Candidate).filter(Candidate.id == candidate['id']).first()
+            if not candidate_data:
+                continue
+                
+            # Build candidate text
+            candidate_text = f"Name: {candidate_data.name}\n"
+            candidate_text += f"Title: {candidate_data.title}\n"
+            candidate_text += f"Bio: {candidate_data.bio or ''}\n"
             
-        # Get candidate text representation
-        candidate_text = get_candidate_text(candidate_obj)
-        
-        # Prepare batch of skills to evaluate
-        zero_score_indices = [j for j, score in enumerate(scores[i]) if score < 0.5]
-        if not zero_score_indices:
-            continue
+            # Add education
+            candidate_text += "Education:\n"
+            for edu in candidate_data.educations:
+                candidate_text += f"- {edu.degree} in {edu.field} from {edu.institution}\n"
             
-        skills_to_check = [skills[j]['name'] for j in zero_score_indices]
-        
-        # Prepare prompt
-        prompt = f"""
-        Based on the following candidate profile, evaluate their potential proficiency in each of the listed skills.
-        Assign a score between 0.0 and 0.9 for each skill, where:
-        - 0.0 means no evidence of the skill
-        - 0.3 means they likely have basic familiarity based on related skills or experience
-        - 0.6 means they likely have moderate proficiency based on their background
-        - 0.9 means they very likely have strong proficiency based on closely related skills and experience
-        
-        Never assign 1.0 as that's reserved for explicitly listed skills.
-        
-        Return your analysis as a JSON object with skill names as keys and scores as values.
-        
-        Candidate Profile:
-        {candidate_text}
-        
-        Skills to evaluate:
-        {', '.join(skills_to_check)}
-        """
-        
-        try:
-            # Call OpenAI API
-            response = openai_client.chat.completions.create(
-                model="gpt-4o",  # the newest OpenAI model is "gpt-4o" which was released May 13, 2024
-                messages=[
-                    {"role": "system", "content": "You are a recruiting assistant helping to evaluate candidates' potential skill matches."},
-                    {"role": "user", "content": prompt}
-                ],
-                response_format={"type": "json_object"},
-                temperature=0.2
-            )
+            # Add experience
+            candidate_text += "Experience:\n"
+            for exp in candidate_data.experiences:
+                candidate_text += f"- {exp.role} at {exp.company}: {exp.description or ''}\n"
             
-            # Parse the response
-            result_text = response.choices[0].message.content
-            skill_scores = json.loads(result_text)
-            
-            # Update scores
-            for j, skill_idx in enumerate(zero_score_indices):
-                skill_name = skills[skill_idx]['name']
-                if skill_name in skill_scores:
-                    scores[i, skill_idx] = min(0.9, max(0, float(skill_scores[skill_name])))
+            # For each skill the candidate doesn't explicitly have
+            for j, skill in enumerate(skills):
+                if scores[i][j] == 0:  # Only process skills the candidate doesn't have
+                    # Get more info about the skill
+                    skill_data = db.session.query(Skill).filter(Skill.id == skill['id']).first()
+                    skill_name = skill_data.name if skill_data else skill['name']
+                    
+                    # Prepare the prompt
+                    prompt = f"""
+                    Based on the following candidate profile, determine if they likely have experience with the skill '{skill_name}' 
+                    even if it's not explicitly listed. Consider related skills, job roles, and educational background.
+                    
+                    Candidate profile:
+                    {candidate_text}
+                    
+                    Rate the likelihood on a scale from 0.0 to 0.9, where:
+                    - 0.0 means definitely doesn't have the skill
+                    - 0.3 means possibly has the skill (low confidence)
+                    - 0.6 means likely has the skill (medium confidence)
+                    - 0.9 means very likely has the skill (high confidence)
+                    
+                    Return only the numeric score.
+                    """
+                    
+                    # Call OpenAI
+                    response = client.chat.completions.create(
+                        model="gpt-4o",  # The newest OpenAI model is "gpt-4o" which was released May 13, 2024
+                        messages=[
+                            {"role": "system", "content": "You are a skilled technical recruiter who can identify implicit skills from candidate profiles."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        max_tokens=10,
+                        temperature=0.2
+                    )
+                    
+                    # Parse response
+                    try:
+                        score_text = response.choices[0].message.content.strip()
+                        score = float(score_text)
+                        # Ensure score is in the right range
+                        score = max(0.0, min(0.9, score))
+                        scores[i][j] = score
+                    except (ValueError, IndexError):
+                        # If parsing fails, leave as 0
+                        pass
         
-        except Exception as e:
-            logging.error(f"Error evaluating skills with LLM for candidate {candidate['id']}: {e}")
-    
-    # Update result with enhanced scores
-    result['scores'] = scores.tolist()
-    return result
+        # Update the result with enhanced scores
+        result['scores'] = scores.tolist()
+        
+        return result
+        
+    except Exception as e:
+        # If anything goes wrong, return the original scores
+        print(f"Error enhancing scores with LLM: {e}")
+        return result

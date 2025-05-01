@@ -2,6 +2,8 @@
 
 Tech Talent Matcher is an AI-powered platform for tech recruitment that uses advanced algorithms to match candidates with job requirements. The platform leverages LLM-based semantic search and skill matching to find the most relevant candidates for specific roles.
 
+![Tech Talent Matcher Application Interface](attached_assets/image_1746071365516.png)
+
 ## Features
 
 ### Smart Candidate Search
