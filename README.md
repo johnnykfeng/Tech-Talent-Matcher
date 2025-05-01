@@ -2,6 +2,8 @@
 
 ### Video demo: [https://www.veed.io/view/2a94f7f1-ec84-4ea6-ae10-1611070b5453?panel=share](https://www.veed.io/view/2a94f7f1-ec84-4ea6-ae10-1611070b5453?panel=share)
 
+## Deployed URL: [https://tech-talent-matcher.replit.app/](https://tech-talent-matcher.replit.app/)
+
 Tech Talent Matcher is an AI-powered platform for tech recruitment that uses advanced algorithms to match candidates with job requirements. The platform leverages LLM-based semantic search and skill matching to find the most relevant candidates for specific roles.
 
 ![Tech Talent Matcher Application Interface](attached_assets/image_1746071365516.png)
