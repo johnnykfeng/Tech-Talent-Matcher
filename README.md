@@ -24,6 +24,7 @@ Tech Talent Matcher is an AI-powered platform for tech recruitment that uses adv
 
 ## Technology Stack
 
+- **Vibe-Coding Platform**: Replit.com
 - **Backend**: Python with Flask framework
 - **Database**: PostgreSQL with SQLAlchemy ORM
 - **Frontend**: HTML, CSS, JavaScript with Bootstrap 5
@@ -103,14 +104,13 @@ The application provides the following API endpoints:
 - `templates/`: HTML templates
 - `static/`: Static files (CSS, JS, images)
 
-## Future Enhancements
+## Future Work
 
-- Resume parsing and automatic candidate import
-- Job description matching and recommendation
-- Team composition analysis
-- Customizable matching algorithms
-- Recruiter collaboration features
-- Automated candidate outreach
+At the moment, only a few base features are functional. We plan to continue working building these features:
+- analytics dashboard for talent matching
+- improved semantic search and more functional search bar
+- more condensed filters for broader search
+- functional skill heatmap
 
 ## License
 
